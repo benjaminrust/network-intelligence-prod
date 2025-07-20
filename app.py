@@ -11,8 +11,9 @@ import threading
 import time
 import uuid
 import requests
-from models import DatabaseManager, SecurityEvent, NetworkAnalytics, ThreatIntelligence, UserSession
+from models import DatabaseManager, SecurityEvent, NetworkAnalytics, ThreatIntelligence, UserSession, TrafficEmbeddings
 from cache_manager import CacheManager
+from embedding_manager import EmbeddingManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +38,10 @@ security_event = SecurityEvent(db_manager) if db_manager else None
 network_analytics = NetworkAnalytics(db_manager) if db_manager else None
 threat_intelligence = ThreatIntelligence(db_manager) if db_manager else None
 user_session = UserSession(db_manager) if db_manager else None
+traffic_embeddings = TrafficEmbeddings(db_manager) if db_manager else None
+
+# Initialize embedding manager
+embedding_manager = EmbeddingManager()
 
 # Network Intelligence Core Classes
 class NetworkMonitor:
@@ -853,6 +858,178 @@ def list_ai_models():
         'models': models,
         'total': len(models)
     })
+
+# Vector Search and Embedding Endpoints
+@app.route('/api/embeddings/generate', methods=['POST'])
+def generate_embedding():
+    """Generate embedding for traffic analysis data"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        analysis_type = data.get('analysis_type', 'traffic_analysis')
+        
+        if analysis_type == 'traffic_analysis':
+            embedding_data = embedding_manager.generate_traffic_analysis_embedding(data)
+        elif analysis_type == 'security_event':
+            embedding_data = embedding_manager.generate_security_event_embedding(data)
+        elif analysis_type == 'network_metric':
+            embedding_data = embedding_manager.generate_network_metric_embedding(data)
+        else:
+            return jsonify({'error': f'Unsupported analysis type: {analysis_type}'}), 400
+        
+        if not embedding_data:
+            return jsonify({'error': 'Failed to generate embedding'}), 500
+        
+        # Store embedding in database
+        if traffic_embeddings:
+            stored_embedding = traffic_embeddings.store_embedding(embedding_data)
+            if stored_embedding:
+                embedding_data['id'] = stored_embedding['id']
+                embedding_data['stored_at'] = stored_embedding['timestamp']
+        
+        return jsonify({
+            'success': True,
+            'embedding_data': embedding_data,
+            'analysis_type': analysis_type
+        })
+    
+    except Exception as e:
+        logger.error(f"Error generating embedding: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/embeddings/search', methods=['POST'])
+def search_similar_patterns():
+    """Search for similar traffic patterns using vector similarity"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No search data provided'}), 400
+        
+        # Generate embedding for the search query
+        query_text = data.get('query_text')
+        if not query_text:
+            return jsonify({'error': 'No query text provided'}), 400
+        
+        query_embedding = embedding_manager.generate_embedding(query_text)
+        if not query_embedding:
+            return jsonify({'error': 'Failed to generate query embedding'}), 500
+        
+        # Search for similar patterns
+        analysis_type = data.get('analysis_type')
+        limit = data.get('limit', 10)
+        similarity_threshold = data.get('similarity_threshold', 0.8)
+        
+        if traffic_embeddings:
+            similar_patterns = traffic_embeddings.find_similar_patterns(
+                query_embedding, 
+                analysis_type, 
+                limit, 
+                similarity_threshold
+            )
+        else:
+            similar_patterns = []
+        
+        return jsonify({
+            'query_text': query_text,
+            'similarity_threshold': similarity_threshold,
+            'results_count': len(similar_patterns),
+            'similar_patterns': similar_patterns
+        })
+    
+    except Exception as e:
+        logger.error(f"Error searching similar patterns: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/embeddings/analyze', methods=['POST'])
+def analyze_with_embeddings():
+    """Analyze traffic with embedding-based similarity detection"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No analysis data provided'}), 400
+        
+        # Generate embedding for the current analysis
+        embedding_data = embedding_manager.generate_traffic_analysis_embedding(data)
+        if not embedding_data:
+            return jsonify({'error': 'Failed to generate embedding for analysis'}), 500
+        
+        # Store the embedding
+        if traffic_embeddings:
+            stored_embedding = traffic_embeddings.store_embedding(embedding_data)
+            if stored_embedding:
+                embedding_data['id'] = stored_embedding['id']
+        
+        # Find similar historical patterns
+        similar_patterns = []
+        if traffic_embeddings:
+            similar_patterns = traffic_embeddings.find_similar_patterns(
+                embedding_data['embedding'],
+                data.get('analysis_type', 'traffic_analysis'),
+                limit=5,
+                similarity_threshold=0.7
+            )
+        
+        # Enhanced analysis with similarity insights
+        enhanced_analysis = {
+            'original_analysis': data,
+            'embedding_generated': True,
+            'similar_patterns_found': len(similar_patterns),
+            'similarity_insights': [],
+            'recommended_actions': []
+        }
+        
+        # Analyze similar patterns for insights
+        if similar_patterns:
+            avg_risk_score = sum(p.get('risk_score', 0) for p in similar_patterns) / len(similar_patterns)
+            high_risk_count = sum(1 for p in similar_patterns if p.get('risk_score', 0) > 70)
+            
+            enhanced_analysis['similarity_insights'] = [
+                f"Found {len(similar_patterns)} similar historical patterns",
+                f"Average risk score of similar patterns: {avg_risk_score:.1f}",
+                f"High-risk similar patterns: {high_risk_count}"
+            ]
+            
+            if high_risk_count > 2:
+                enhanced_analysis['recommended_actions'].append("High correlation with historical high-risk patterns - immediate investigation recommended")
+            
+            if avg_risk_score > 60:
+                enhanced_analysis['recommended_actions'].append("Pattern matches historical moderate-risk events - increase monitoring")
+        
+        return jsonify(enhanced_analysis)
+    
+    except Exception as e:
+        logger.error(f"Error in embedding-based analysis: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/embeddings/stats')
+def get_embedding_stats():
+    """Get statistics about stored embeddings"""
+    try:
+        stats = {
+            'total_embeddings': 0,
+            'embeddings_by_type': {},
+            'recent_embeddings': [],
+            'embedding_manager_status': 'enabled' if embedding_manager.enabled else 'disabled'
+        }
+        
+        if traffic_embeddings:
+            # Get embeddings by type
+            for analysis_type in ['traffic_analysis', 'security_event', 'network_metric']:
+                embeddings = traffic_embeddings.get_embeddings_by_type(analysis_type, limit=100)
+                stats['embeddings_by_type'][analysis_type] = len(embeddings)
+                stats['total_embeddings'] += len(embeddings)
+                
+                # Get recent embeddings for this type
+                if embeddings:
+                    stats['recent_embeddings'].extend(embeddings[:3])
+        
+        return jsonify(stats)
+    
+    except Exception as e:
+        logger.error(f"Error getting embedding stats: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 # Background monitoring task
 def background_monitor():
