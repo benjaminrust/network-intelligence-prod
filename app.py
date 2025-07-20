@@ -1032,6 +1032,158 @@ def get_embedding_stats():
         return jsonify({'error': 'Internal server error'}), 500
 
 # Background monitoring task
+
+@app.route('/api/guidance/generate', methods=['POST'])
+def generate_guidance():
+    """Generate Claude guidance based on analysis results"""
+    try:
+        data = request.get_json()
+        
+        # Extract analysis data
+        analysis_data = data.get('analysis_data', {})
+        risk_score = analysis_data.get('risk_score', 0)
+        threats_detected = analysis_data.get('threats_detected', [])
+        recommendations = analysis_data.get('recommendations', [])
+        source_ip = analysis_data.get('source_ip', 'Unknown')
+        
+        # Get Claude API configuration
+        claude_api_key = os.environ.get('CLAUDE_API_KEY')
+        claude_url = os.environ.get('CLAUDE_URL', 'https://api.anthropic.com/v1/messages')
+        
+        if not claude_api_key:
+            return jsonify({
+                'success': False,
+                'error': 'Claude API key not configured'
+            }), 500
+        
+        # Prepare the prompt for Claude
+        prompt = f"""You are an expert network security engineer providing guidance to a network administrator.
+
+Based on the following network analysis results, provide clear, actionable guidance:
+
+**Analysis Summary:**
+- Source IP: {source_ip}
+- Risk Score: {risk_score}/100
+- Threats Detected: {", ".join(threats_detected) if threats_detected else "None detected"}
+- Current Recommendations: {", ".join(recommendations) if recommendations else "None"}
+
+**Your Task:**
+Provide a concise, professional guidance response that includes:
+1. **Immediate Actions** - What should be done right now (if risk score > 50)
+2. **Investigation Steps** - Specific technical steps to investigate further
+3. **Prevention Measures** - How to prevent similar issues in the future
+4. **Monitoring Recommendations** - What to watch for going forward
+
+Keep your response focused, technical, and actionable. Use bullet points for clarity. Aim for 3-5 key points in each section.
+
+**Guidance:**"""
+        
+        # Call Claude API
+        headers = {
+            'Content-Type': 'application/json',
+            'x-api-key': claude_api_key,
+            'anthropic-version': '2023-06-01'
+        }
+        
+        payload = {
+            'model': 'claude-3-5-sonnet-20241022',
+            'max_tokens': 1000,
+            'messages': [
+                {
+                    'role': 'user',
+                    'content': prompt
+                }
+            ]
+        }
+        
+        response = requests.post(claude_url, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            guidance_text = result.get('content', [{}])[0].get('text', 'Unable to generate guidance')
+            
+            return jsonify({
+                'success': True,
+                'guidance': guidance_text,
+                'generated_at': datetime.now().isoformat()
+            })
+        else:
+            logger.error(f"Claude API error: {response.status_code} - {response.text}")
+            return jsonify({
+                'success': False,
+                'error': f'Claude API error: {response.status_code}',
+                'fallback_guidance': generate_fallback_guidance(risk_score, threats_detected)
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error generating guidance: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'fallback_guidance': generate_fallback_guidance(
+                data.get('analysis_data', {}).get('risk_score', 0),
+                data.get('analysis_data', {}).get('threats_detected', [])
+            )
+        }), 500
+
+def generate_fallback_guidance(risk_score, threats_detected):
+    """Generate fallback guidance when Claude API is unavailable"""
+    if risk_score >= 80:
+        return """**IMMEDIATE ACTION REQUIRED**
+• Block the source IP immediately
+• Review firewall logs for similar patterns
+• Check for data exfiltration indicators
+• Notify security team
+
+**Investigation Steps:**
+• Analyze network traffic patterns
+• Review authentication logs
+• Check for malware indicators
+• Monitor for additional suspicious activity
+
+**Prevention:**
+• Implement stricter access controls
+• Enable intrusion detection systems
+• Regular security audits
+• Employee security training"""
+    
+    elif risk_score >= 50:
+        return """**Investigation Recommended**
+• Monitor the source IP closely
+• Review recent network activity
+• Check for unusual patterns
+• Document findings
+
+**Next Steps:**
+• Implement temporary restrictions if needed
+• Review security policies
+• Update monitoring rules
+• Consider additional security measures
+
+**Prevention:**
+• Regular security assessments
+• Network segmentation
+• Access control reviews
+• Security awareness training"""
+    
+    else:
+        return """**Low Risk - Monitor**
+• Continue normal monitoring
+• Document the event
+• Review security policies
+• No immediate action required
+
+**Recommendations:**
+• Regular security reviews
+• Keep systems updated
+• Monitor for pattern changes
+• Maintain security best practices
+
+**Prevention:**
+• Ongoing security awareness
+• Regular policy reviews
+• System maintenance
+• Proactive monitoring"""
 def background_monitor():
     """Background task for continuous monitoring"""
     while True:
