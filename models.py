@@ -28,7 +28,7 @@ class DatabaseManager:
         
         try:
             with conn.cursor() as cur:
-                # Security Events Table
+                # Security Events Table with vector support
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS security_events (
                         id SERIAL PRIMARY KEY,
@@ -49,11 +49,13 @@ class DatabaseManager:
                         risk_score INTEGER DEFAULT 0,
                         threat_indicators JSONB,
                         metadata JSONB,
-                        status VARCHAR(20) DEFAULT 'active'
+                        status VARCHAR(20) DEFAULT 'active',
+                        embedding vector(1024),
+                        text_description TEXT
                     )
                 """)
                 
-                # Network Analytics Table
+                # Network Analytics Table with vector support
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS network_analytics (
                         id SERIAL PRIMARY KEY,
@@ -63,7 +65,25 @@ class DatabaseManager:
                         metric_unit VARCHAR(20),
                         source VARCHAR(100),
                         tags JSONB,
-                        period VARCHAR(20) DEFAULT 'realtime'
+                        period VARCHAR(20) DEFAULT 'realtime',
+                        embedding vector(1024),
+                        text_description TEXT
+                    )
+                """)
+                
+                # New Traffic Analysis Embeddings Table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS traffic_embeddings (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        analysis_type VARCHAR(100) NOT NULL,
+                        source_data JSONB NOT NULL,
+                        text_description TEXT NOT NULL,
+                        embedding vector(1024) NOT NULL,
+                        risk_score INTEGER DEFAULT 0,
+                        similarity_threshold DECIMAL(5, 4) DEFAULT 0.8,
+                        metadata JSONB,
+                        status VARCHAR(20) DEFAULT 'active'
                     )
                 """)
                 
@@ -128,8 +148,13 @@ class DatabaseManager:
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_network_analytics_timestamp ON network_analytics(timestamp)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_session_id ON user_sessions(session_id)")
                 
+                # Create vector indexes for similarity search
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_security_events_embedding ON security_events USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_network_analytics_embedding ON network_analytics USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_traffic_embeddings_embedding ON traffic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
+                
             conn.commit()
-            logger.info("Database tables initialized successfully")
+            logger.info("Database tables initialized successfully with vector support")
             
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
@@ -154,7 +179,7 @@ class SecurityEvent:
                         event_type, severity, source_ip, destination_ip, 
                         source_port, destination_port, protocol, payload_size,
                         user_agent, country_code, city, latitude, longitude,
-                        risk_score, threat_indicators, metadata
+                        risk_score, threat_indicators, metadata, embedding, text_description
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     ) RETURNING *
@@ -174,7 +199,9 @@ class SecurityEvent:
                     event_data.get('longitude'),
                     event_data.get('risk_score', 0),
                     json.dumps(event_data.get('threat_indicators', [])),
-                    json.dumps(event_data.get('metadata', {}))
+                    json.dumps(event_data.get('metadata', {})),
+                    event_data.get('embedding'),
+                    event_data.get('text_description')
                 ))
                 
                 result = cur.fetchone()
@@ -243,15 +270,17 @@ class NetworkAnalytics:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     INSERT INTO network_analytics (
-                        metric_name, metric_value, metric_unit, source, tags, period
-                    ) VALUES (%s, %s, %s, %s, %s, %s) RETURNING *
+                        metric_name, metric_value, metric_unit, source, tags, period, embedding, text_description
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
                 """, (
                     metric_data.get('metric_name'),
                     metric_data.get('metric_value'),
                     metric_data.get('metric_unit'),
                     metric_data.get('source'),
                     json.dumps(metric_data.get('tags', {})),
-                    metric_data.get('period', 'realtime')
+                    metric_data.get('period', 'realtime'),
+                    metric_data.get('embedding'),
+                    metric_data.get('text_description')
                 ))
                 
                 result = cur.fetchone()
@@ -416,6 +445,125 @@ class UserSession:
                 
         except Exception as e:
             logger.error(f"Error updating session: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close() 
+
+class TrafficEmbeddings:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
+    
+    def store_embedding(self, embedding_data):
+        """Store a traffic analysis embedding"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return None
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO traffic_embeddings (
+                        analysis_type, source_data, text_description, embedding,
+                        risk_score, similarity_threshold, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *
+                """, (
+                    embedding_data.get('analysis_type'),
+                    json.dumps(embedding_data.get('source_data', {})),
+                    embedding_data.get('text_description'),
+                    embedding_data.get('embedding'),
+                    embedding_data.get('risk_score', 0),
+                    embedding_data.get('similarity_threshold', 0.8),
+                    json.dumps(embedding_data.get('metadata', {}))
+                ))
+                
+                result = cur.fetchone()
+                conn.commit()
+                return dict(result) if result else None
+                
+        except Exception as e:
+            logger.error(f"Error storing embedding: {e}")
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+    
+    def find_similar_patterns(self, query_embedding, analysis_type=None, limit=10, similarity_threshold=0.8):
+        """Find similar traffic patterns using vector similarity"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = """
+                    SELECT *, 
+                           (1 - (embedding <=> %s)) as similarity_score
+                    FROM traffic_embeddings 
+                    WHERE (1 - (embedding <=> %s)) >= %s
+                """
+                params = [query_embedding, query_embedding, similarity_threshold]
+                
+                if analysis_type:
+                    query += " AND analysis_type = %s"
+                    params.append(analysis_type)
+                
+                query += " ORDER BY embedding <=> %s LIMIT %s"
+                params.extend([query_embedding, limit])
+                
+                cur.execute(query, params)
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+                
+        except Exception as e:
+            logger.error(f"Error finding similar patterns: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def get_embeddings_by_type(self, analysis_type, limit=100):
+        """Get embeddings by analysis type"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM traffic_embeddings 
+                    WHERE analysis_type = %s 
+                    ORDER BY timestamp DESC 
+                    LIMIT %s
+                """, (analysis_type, limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+                
+        except Exception as e:
+            logger.error(f"Error getting embeddings by type: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def update_embedding_metadata(self, embedding_id, metadata):
+        """Update embedding metadata"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return False
+        
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE traffic_embeddings 
+                    SET metadata = %s 
+                    WHERE id = %s
+                """, (json.dumps(metadata), embedding_id))
+                
+                conn.commit()
+                return cur.rowcount > 0
+                
+        except Exception as e:
+            logger.error(f"Error updating embedding metadata: {e}")
             conn.rollback()
             return False
         finally:
