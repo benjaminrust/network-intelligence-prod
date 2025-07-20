@@ -1,4 +1,4 @@
-# GitHub Repository Setup - Production
+# GitHub Repository Setup
 
 Since GitHub CLI is not installed, please follow these steps to create the GitHub repository:
 
@@ -7,8 +7,8 @@ Since GitHub CLI is not installed, please follow these steps to create the GitHu
 1. **Go to GitHub**: Visit https://github.com/new
 
 2. **Repository Settings**:
-   - **Repository name**: `network-intelligence-prod`
-   - **Description**: `Network Intelligence Production App`
+   - **Repository name**: `network-intelligence-dev`
+   - **Description**: `Network Intelligence Development App`
    - **Visibility**: Public (or Private if preferred)
    - **Initialize with**: Don't initialize (we already have code)
 
@@ -16,26 +16,24 @@ Since GitHub CLI is not installed, please follow these steps to create the GitHu
 
 4. **After Creation**: GitHub will show you the repository URL. It should be:
    ```
-   https://github.com/benjaminrust/network-intelligence-prod.git
+   https://github.com/benjaminrust/network-intelligence-dev.git
    ```
 
 5. **Push Code**: Once the repository is created, run:
    ```bash
-   git remote add origin https://github.com/benjaminrust/network-intelligence-prod.git
    git push -u origin main
    ```
 
+## Alternative: Use GitHub Web Interface
+
+If you prefer, you can also:
+1. Create the repository on GitHub
+2. Upload the files directly through the web interface
+3. Then pull the repository locally
+
 ## Current Status
 
-✅ **Heroku Deployment**: Complete (via pipeline promotion)
+✅ **Heroku Deployment**: Complete
 ✅ **Local Git Repository**: Complete  
 ✅ **Code Structure**: Complete
-⏳ **GitHub Repository**: Pending manual creation
-
-## Pipeline Integration
-
-This production app is connected to the `network-intelligence` pipeline and receives promotions from the staging environment.
-
-## Security Note
-
-This is a production repository. Ensure proper access controls and security measures are in place. 
+⏳ **GitHub Repository**: Pending manual creation 
