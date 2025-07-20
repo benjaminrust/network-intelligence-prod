@@ -47,7 +47,7 @@ class EmbeddingManager:
             if response.status_code == 200:
                 result = response.json()
                 logger.info(f"Cohere API response: {result}")
-                embeddings = result.get('embeddings', [])
+                embeddings = result.get("data", [])
                 if embeddings:
                     return embeddings[0].get("embedding", [])
                 else:
@@ -276,7 +276,7 @@ class EmbeddingManager:
             
             if response.status_code == 200:
                 result = response.json()
-                embeddings = result.get('embeddings', [])
+                embeddings = result.get("data", [])
                 logger.info(f"Cohere API batch response: {result}")
                 return embeddings
             else:
