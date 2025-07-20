@@ -1062,9 +1062,10 @@ def generate_guidance():
             
             logger.info(f"Embedding payload: {embedding_payload}")
             embedding_result = embedding_manager.generate_embedding(embedding_payload)
-            logger.info(f"Embedding generated successfully: {embedding_result.get("id") if embedding_result else "None"}")
         except Exception as e:
             logger.warning(f"Failed to generate embedding during guidance request: {e}")
+            logger.exception("Full embedding generation error:")
+        
             logger.exception("Full embedding generation error:")
         
         # Get Claude API configuration
