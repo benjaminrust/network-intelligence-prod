@@ -1079,7 +1079,8 @@ def generate_guidance():
                 "success": True,
                 "guidance": fallback_guidance,
                 "generated_at": datetime.now().isoformat(),
-                "note": "Using fallback guidance (Claude API not configured)"
+                "note": "Using fallback guidance (Claude API not configured)",
+                "embedding_generated": embedding_result is not None
             })
                 
         # Prepare the prompt for Claude
