@@ -793,7 +793,8 @@
                 
                 // Refresh dashboard data to show updated metrics
                 // Generate AI guidance
-                generateAIGuidance(data);                loadDashboardData();
+                generateAIGuidance(data);
+                loadDashboardData();
             })
             .fail(function(error) {
                 console.error('Error analyzing traffic:', error);
