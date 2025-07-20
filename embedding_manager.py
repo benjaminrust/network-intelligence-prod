@@ -38,7 +38,7 @@ class EmbeddingManager:
             }
             
             response = requests.post(
-                f"{self.cohere_url}/v1/embed",
+                f"{self.cohere_url}/v1/embeddings",
                 headers=headers,
                 json=payload,
                 timeout=30
@@ -48,7 +48,7 @@ class EmbeddingManager:
                 result = response.json()
                 embeddings = result.get('embeddings', [])
                 if embeddings:
-                    return embeddings[0]
+                    return embeddings[0].get("embedding", [])
                 else:
                     logger.error("No embeddings returned from Cohere")
                     return None
@@ -267,7 +267,7 @@ class EmbeddingManager:
             }
             
             response = requests.post(
-                f"{self.cohere_url}/v1/embed",
+                f"{self.cohere_url}/v1/embeddings",
                 headers=headers,
                 json=payload,
                 timeout=60
