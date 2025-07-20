@@ -1051,11 +1051,15 @@ def generate_guidance():
         claude_url = os.environ.get('CLAUDE_URL', 'https://api.anthropic.com/v1/messages')
         
         if not claude_api_key:
+            # Use fallback guidance when Claude API key is not configured
+            fallback_guidance = generate_fallback_guidance(risk_score, threats_detected)
             return jsonify({
-                'success': False,
-                'error': 'Claude API key not configured'
-            }), 500
-        
+                "success": True,
+                "guidance": fallback_guidance,
+                "generated_at": datetime.now().isoformat(),
+                "note": "Using fallback guidance (Claude API not configured)"
+            })
+                
         # Prepare the prompt for Claude
         prompt = f"""You are an expert network security engineer providing guidance to a network administrator.
 
