@@ -1061,7 +1061,7 @@ def generate_guidance():
             }
             
             logger.info(f"Embedding payload: {embedding_payload}")
-            embedding_result = embedding_manager.generate_embedding(embedding_payload)
+            embedding_result = embedding_manager.generate_traffic_analysis_embedding(embedding_payload)
         except Exception as e:
             logger.warning(f"Failed to generate embedding during guidance request: {e}")
             logger.exception("Full embedding generation error:")
