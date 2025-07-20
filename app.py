@@ -97,6 +97,60 @@ class NetworkMonitor:
             redis_client.ltrim('network_alerts', 0, 99)  # Keep last 100 alerts
         
         return alert
+    def generate_dynamic_stats(self):
+        """Generate dynamic network statistics"""
+        import random
+        from datetime import datetime, timedelta
+        
+        # Generate realistic but varying stats
+        base_connections = random.randint(800, 1500)
+        suspicious_ratio = random.uniform(0.05, 0.15)
+        blocked_ratio = random.uniform(0.02, 0.08)
+        
+        stats = {
+            "total_connections": base_connections,
+            "suspicious_connections": int(base_connections * suspicious_ratio),
+            "blocked_attempts": int(base_connections * blocked_ratio),
+            "last_updated": datetime.now().isoformat()
+        }
+        
+        # Update the instance variable
+        self.network_stats = stats
+        
+        # Print to console for debugging
+        print(f"Generated dynamic stats: {stats}")
+        
+        return stats
+    
+    def generate_mock_security_events(self, count=5):
+        """Generate realistic mock security events"""
+        import random
+        
+        events = []
+        for i in range(count):
+            # Generate random timestamp within last 2 hours
+            time_offset = random.randint(0, 7200)  # 2 hours in seconds
+            event_time = datetime.now() - timedelta(seconds=time_offset)
+            
+            event = {
+                "id": random.randint(1000, 9999),
+                "timestamp": event_time.isoformat(),
+                "event_type": random.choice(self.event_types),
+                "source_ip": random.choice(self.mock_ips),
+                "severity": random.choice(["low", "medium", "high"]),
+                "risk_score": random.randint(20, 95),
+                "description": f"Security event detected from {random.choice(self.mock_ips)}"
+            }
+            events.append(event)
+        
+        # Sort by timestamp (most recent first)
+        events.sort(key=lambda x: x["timestamp"], reverse=True)
+        return events
+    
+    def get_analyze_suggestions(self):
+        """Get IPs from recent events that can be analyzed"""
+        events = self.generate_mock_security_events(3)
+        return [event["source_ip"] for event in events]
 
 # Initialize network monitor
 network_monitor = NetworkMonitor()
