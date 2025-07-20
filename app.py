@@ -1053,9 +1053,9 @@ def generate_guidance():
             embedding_payload = {
                 "analysis_type": "traffic_analysis",
                 "source_ip": source_ip,
-                "connection_count": analysis_data.get("connection_count", 0),
-                "failed_auth_attempts": analysis_data.get("failed_auth_attempts", 0),
-                "risk_score": risk_score,
+                "connection_count": str(analysis_data.get("connection_count", 0)),
+                "failed_auth_attempts": str(analysis_data.get("failed_auth_attempts", 0)),
+                "risk_score": str(risk_score),
                 "threats_detected": threats_detected,
                 "recommendations": recommendations
             }
