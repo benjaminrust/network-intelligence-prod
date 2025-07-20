@@ -10,7 +10,7 @@ class EmbeddingManager:
     def __init__(self):
         self.cohere_url = os.getenv('COHERE_URL')
         self.cohere_api_key = os.getenv('COHERE_KEY')
-        self.model_name = "embed-multilingual-v3.0"
+        self.model_name = os.getenv("COHERE_MODEL_ID", "cohere-embed-multilingual")
         
         if not self.cohere_url or not self.cohere_api_key:
             logger.warning("Cohere credentials not found. Embedding generation will be disabled.")
