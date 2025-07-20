@@ -1046,6 +1046,27 @@ def generate_guidance():
         recommendations = analysis_data.get('recommendations', [])
         source_ip = analysis_data.get('source_ip', 'Unknown')
         
+        # Generate embedding automatically when guidance is requested
+        embedding_result = None
+        try:
+            logger.info("Starting embedding generation for guidance request")
+            embedding_payload = {
+                "analysis_type": "traffic_analysis",
+                "source_ip": source_ip,
+                "connection_count": analysis_data.get("connection_count", 0),
+                "failed_auth_attempts": analysis_data.get("failed_auth_attempts", 0),
+                "risk_score": risk_score,
+                "threats_detected": threats_detected,
+                "recommendations": recommendations
+            }
+            
+            logger.info(f"Embedding payload: {embedding_payload}")
+            embedding_result = embedding_manager.generate_embedding(embedding_payload)
+            logger.info(f"Embedding generated successfully: {embedding_result.get("id") if embedding_result else "None"}")
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding during guidance request: {e}")
+            logger.exception("Full embedding generation error:")
+        
         # Get Claude API configuration
         claude_api_key = os.environ.get('CLAUDE_API_KEY')
         claude_url = os.environ.get('CLAUDE_URL', 'https://api.anthropic.com/v1/messages')
