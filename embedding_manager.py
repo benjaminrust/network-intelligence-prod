@@ -32,7 +32,7 @@ class EmbeddingManager:
             }
             
             payload = {
-                'texts': [text],
+                'input': [text],
                 'model': self.model_name,
                 'input_type': 'search_document'
             }
@@ -261,7 +261,7 @@ class EmbeddingManager:
             }
             
             payload = {
-                'texts': texts,
+                'input': texts,
                 'model': self.model_name,
                 'input_type': 'search_document'
             }
