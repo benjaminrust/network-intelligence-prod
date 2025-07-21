@@ -1052,14 +1052,14 @@ def generate_guidance():
         request_id = f"guidance_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(source_ip) % 10000}"
         
         # Get Claude API configuration
-        claude_api_key = os.environ.get('CLAUDE_API_KEY')
-        claude_url = os.environ.get('CLAUDE_URL', 'https://api.anthropic.com/v1/messages')
+        claude_api_key = os.environ.get('CLAUDE_KEY')
+        claude_url = os.environ.get('CLAUDE_URL', 'https://us.inference.heroku.com')
         
         if not claude_api_key:
             return jsonify({
                 'success': False,
                 'error': 'Claude API key not configured',
-                'note': "Please configure CLAUDE_API_KEY environment variable"
+                'note': "Please configure CLAUDE_KEY environment variable"
             }), 500
         
         # Prepare a dynamic prompt that ensures fresh responses
@@ -1093,12 +1093,11 @@ Format your response as clear, well-structured paragraphs for each section, writ
         start_time = datetime.now()
         headers = {
             'Content-Type': 'application/json',
-            'x-api-key': claude_api_key,
-            'anthropic-version': '2023-06-01'
+            'Authorization': f'Bearer {claude_api_key}'
         }
         
         payload = {
-            'model': 'claude-3-5-sonnet-20241022',
+            'model': os.environ.get('CLAUDE_MODEL_ID', 'claude-3-7-sonnet'),
             'max_tokens': 1000,
             'temperature': 0.7,  # Add some randomness to ensure fresh responses
             'messages': [
@@ -1126,7 +1125,7 @@ Format your response as clear, well-structured paragraphs for each section, writ
                 'threats_detected': threats_detected,
                 'recommendations': recommendations,
                 'claude_response': guidance_text,
-                'model_used': 'claude-3-5-sonnet-20241022',
+                'model_used': os.environ.get('CLAUDE_MODEL_ID', 'claude-3-7-sonnet'),
                 'response_tokens': response_tokens,
                 'processing_time_ms': processing_time_ms,
                 'timestamp': datetime.now().isoformat()
