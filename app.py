@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 import requests
-from models import DatabaseManager, SecurityEvent, NetworkAnalytics, ThreatIntelligence, UserSession, TrafficEmbeddings
+from models import DatabaseManager, SecurityEvent, NetworkAnalytics, ThreatIntelligence, UserSession, TrafficEmbeddings, ClaudeGuidanceResponse
 from cache_manager import CacheManager
 from embedding_manager import EmbeddingManager
 
@@ -39,6 +39,7 @@ network_analytics = NetworkAnalytics(db_manager) if db_manager else None
 threat_intelligence = ThreatIntelligence(db_manager) if db_manager else None
 user_session = UserSession(db_manager) if db_manager else None
 traffic_embeddings = TrafficEmbeddings(db_manager) if db_manager else None
+claude_guidance = ClaudeGuidanceResponse(db_manager) if db_manager else None
 
 # Initialize embedding manager
 embedding_manager = EmbeddingManager()
@@ -1035,77 +1036,61 @@ def get_embedding_stats():
 
 @app.route('/api/guidance/generate', methods=['POST'])
 def generate_guidance():
-    """Generate Claude guidance based on analysis results"""
+    """Generate fresh Claude guidance based on analysis results and store with vectorization"""
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
         
-        # Extract analysis data
         analysis_data = data.get('analysis_data', {})
+        source_ip = analysis_data.get('source_ip', 'Unknown')
         risk_score = analysis_data.get('risk_score', 0)
         threats_detected = analysis_data.get('threats_detected', [])
         recommendations = analysis_data.get('recommendations', [])
-        source_ip = analysis_data.get('source_ip', 'Unknown')
         
-        # Generate embedding automatically when guidance is requested
-        embedding_result = None
-        try:
-            logger.info("Starting embedding generation for guidance request")
-            embedding_payload = {
-                "analysis_type": "traffic_analysis",
-                "source_ip": source_ip,
-                "connection_count": str(analysis_data.get("connection_count", 0)),
-                "failed_auth_attempts": str(analysis_data.get("failed_auth_attempts", 0)),
-                "risk_score": str(risk_score),
-                "threats_detected": threats_detected,
-                "recommendations": recommendations
-            }
-            
-            logger.info(f"Embedding payload: {embedding_payload}")
-            embedding_result = embedding_manager.generate_traffic_analysis_embedding(embedding_payload)
-        except Exception as e:
-            logger.warning(f"Failed to generate embedding during guidance request: {e}")
-            logger.exception("Full embedding generation error:")
-        
-            logger.exception("Full embedding generation error:")
+        # Generate unique request ID for this guidance request
+        request_id = f"guidance_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(source_ip) % 10000}"
         
         # Get Claude API configuration
         claude_api_key = os.environ.get('CLAUDE_API_KEY')
         claude_url = os.environ.get('CLAUDE_URL', 'https://api.anthropic.com/v1/messages')
         
         if not claude_api_key:
-            # Use fallback guidance when Claude API key is not configured
-            fallback_guidance = generate_fallback_guidance(risk_score, threats_detected)
             return jsonify({
-                "success": True,
-                "guidance": fallback_guidance,
-                "generated_at": datetime.now().isoformat(),
-                "note": "Using fallback guidance (Claude API not configured)",
-                "embedding_generated": embedding_result is not None
-            })
-                
-        # Prepare the prompt for Claude
-        prompt = f"""You are an expert network security engineer providing guidance to a network administrator.
+                'success': False,
+                'error': 'Claude API key not configured',
+                'note': "Please configure CLAUDE_API_KEY environment variable"
+            }), 500
+        
+        # Prepare a dynamic prompt that ensures fresh responses
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+        prompt = f"""You are an expert network security engineer providing real-time guidance to a network administrator.
+
+Current timestamp: {current_time}
 
 Based on the following network analysis results, provide clear, actionable guidance:
 
 **Analysis Summary:**
 - Source IP: {source_ip}
 - Risk Score: {risk_score}/100
-- Threats Detected: {", ".join(threats_detected) if threats_detected else "None detected"}
-- Current Recommendations: {", ".join(recommendations) if recommendations else "None"}
+- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None detected'}
+- Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
 
 **Your Task:**
-Provide a concise, professional guidance response that includes:
-1. **Immediate Actions** - What should be done right now (if risk score > 50)
-2. **Investigation Steps** - Specific technical steps to investigate further
-3. **Prevention Measures** - How to prevent similar issues in the future
-4. **Monitoring Recommendations** - What to watch for going forward
+Provide a unique, fresh guidance response that includes:
+1. Immediate Actions - What should be done right now (if risk score > 50)
+2. Investigation Steps - Specific technical steps to investigate further
+3. Prevention Measures - How to prevent similar issues in the future
+4. Monitoring Recommendations - What to watch for going forward
 
-Keep your response focused, technical, and actionable. Use bullet points for clarity. Aim for 3-5 key points in each section.
+Important: Provide a completely fresh response based on the current context. Do not use any cached or pre-written responses. Each response should be unique and tailored to this specific situation.
+
+Format your response as clear, well-structured paragraphs for each section, written in a human-like, conversational style. Do not use bullet points. Write as if you are explaining your reasoning and recommendations to a colleague.
 
 **Guidance:**"""
         
-        # Call Claude API
+        # Call Claude API with timing
+        start_time = datetime.now()
         headers = {
             'Content-Type': 'application/json',
             'x-api-key': claude_api_key,
@@ -1115,6 +1100,7 @@ Keep your response focused, technical, and actionable. Use bullet points for cla
         payload = {
             'model': 'claude-3-5-sonnet-20241022',
             'max_tokens': 1000,
+            'temperature': 0.7,  # Add some randomness to ensure fresh responses
             'messages': [
                 {
                     'role': 'user',
@@ -1124,14 +1110,48 @@ Keep your response focused, technical, and actionable. Use bullet points for cla
         }
         
         response = requests.post(claude_url, headers=headers, json=payload, timeout=30)
+        end_time = datetime.now()
+        processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
         if response.status_code == 200:
             result = response.json()
             guidance_text = result.get('content', [{}])[0].get('text', 'Unable to generate guidance')
+            response_tokens = result.get('usage', {}).get('output_tokens', 0)
+            
+            # Prepare guidance data for storage
+            guidance_data = {
+                'request_id': request_id,
+                'source_ip': source_ip,
+                'risk_score': risk_score,
+                'threats_detected': threats_detected,
+                'recommendations': recommendations,
+                'claude_response': guidance_text,
+                'model_used': 'claude-3-5-sonnet-20241022',
+                'response_tokens': response_tokens,
+                'processing_time_ms': processing_time_ms,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Generate embedding for the guidance response
+            if embedding_manager and embedding_manager.enabled:
+                try:
+                    embedding_data = embedding_manager.generate_guidance_embedding(guidance_data)
+                    if embedding_data and db_manager:
+                        claude_guidance = ClaudeGuidanceResponse(db_manager)
+                        stored_guidance = claude_guidance.store_guidance_response(embedding_data)
+                        if stored_guidance:
+                            logger.info(f"Stored Claude guidance response with embedding: {stored_guidance['id']}")
+                        else:
+                            logger.warning("Failed to store Claude guidance response")
+                except Exception as e:
+                    logger.error(f"Error generating/storing guidance embedding: {e}")
             
             return jsonify({
                 'success': True,
                 'guidance': guidance_text,
+                'request_id': request_id,
+                'processing_time_ms': processing_time_ms,
+                'response_tokens': response_tokens,
                 'generated_at': datetime.now().isoformat()
             })
         else:
@@ -1139,18 +1159,14 @@ Keep your response focused, technical, and actionable. Use bullet points for cla
             return jsonify({
                 'success': False,
                 'error': f'Claude API error: {response.status_code}',
-                'fallback_guidance': generate_fallback_guidance(risk_score, threats_detected)
+                'request_id': request_id
             }), 500
             
     except Exception as e:
         logger.error(f"Error generating guidance: {e}")
         return jsonify({
             'success': False,
-            'error': str(e),
-            'fallback_guidance': generate_fallback_guidance(
-                data.get('analysis_data', {}).get('risk_score', 0),
-                data.get('analysis_data', {}).get('threats_detected', [])
-            )
+            'error': str(e)
         }), 500
 
 def generate_fallback_guidance(risk_score, threats_detected):
@@ -1211,6 +1227,93 @@ def generate_fallback_guidance(risk_score, threats_detected):
 • Regular policy reviews
 • System maintenance
 • Proactive monitoring"""
+
+@app.route('/api/guidance/similar', methods=['POST'])
+def get_similar_guidance():
+    """Get similar guidance responses using vector similarity"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        query_text = data.get('query_text', '')
+        limit = data.get('limit', 5)
+        similarity_threshold = data.get('similarity_threshold', 0.8)
+        
+        if not query_text:
+            return jsonify({'error': 'Query text is required'}), 400
+        
+        # Generate embedding for the query text
+        if not embedding_manager or not embedding_manager.enabled:
+            return jsonify({
+                'success': False,
+                'error': 'Embedding manager not available'
+            }), 500
+        
+        query_embedding = embedding_manager.generate_embedding(query_text)
+        if not query_embedding:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to generate query embedding'
+            }), 500
+        
+        # Find similar guidance responses
+        if not claude_guidance:
+            return jsonify({
+                'success': False,
+                'error': 'Guidance database not available'
+            }), 500
+        
+        similar_responses = claude_guidance.find_similar_guidance(
+            query_embedding, 
+            limit=limit, 
+            similarity_threshold=similarity_threshold
+        )
+        
+        return jsonify({
+            'success': True,
+            'similar_responses': similar_responses,
+            'query_text': query_text,
+            'similarity_threshold': similarity_threshold,
+            'count': len(similar_responses)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error finding similar guidance: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/guidance/history', methods=['GET'])
+def get_guidance_history():
+    """Get recent guidance response history"""
+    try:
+        hours = request.args.get('hours', 24, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        if not claude_guidance:
+            return jsonify({
+                'success': False,
+                'error': 'Guidance database not available'
+            }), 500
+        
+        recent_guidance = claude_guidance.get_recent_guidance(hours=hours, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'guidance_history': recent_guidance,
+            'hours': hours,
+            'count': len(recent_guidance)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting guidance history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 def background_monitor():
     """Background task for continuous monitoring"""
     while True:

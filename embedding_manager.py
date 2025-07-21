@@ -250,7 +250,7 @@ class EmbeddingManager:
         return ". ".join(description_parts)
     
     def batch_generate_embeddings(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """Generate embeddings for multiple texts in batch"""
+        """Generate embeddings for multiple texts"""
         if not self.enabled:
             logger.warning("Embedding generation disabled - no Cohere credentials")
             return [None] * len(texts)
@@ -271,18 +271,73 @@ class EmbeddingManager:
                 f"{self.cohere_url}/v1/embeddings",
                 headers=headers,
                 json=payload,
-                timeout=60
+                timeout=30
             )
             
             if response.status_code == 200:
                 result = response.json()
                 embeddings = result.get("data", [])
-                logger.info(f"Cohere API batch response: {result}")
-                return embeddings
+                return [emb.get("embedding", []) for emb in embeddings]
             else:
                 logger.error(f"Cohere API error: {response.status_code} - {response.text}")
                 return [None] * len(texts)
                 
         except Exception as e:
             logger.error(f"Error generating batch embeddings: {e}")
-            return [None] * len(texts) 
+            return [None] * len(texts)
+    
+    def generate_guidance_embedding(self, guidance_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Generate embedding for Claude guidance response"""
+        # Create a comprehensive text description for the guidance
+        text_description = self._create_guidance_description(guidance_data)
+        
+        # Generate embedding
+        embedding = self.generate_embedding(text_description)
+        
+        if embedding:
+            return {
+                'request_id': guidance_data.get('request_id'),
+                'source_ip': guidance_data.get('source_ip'),
+                'risk_score': guidance_data.get('risk_score', 0),
+                'threats_detected': guidance_data.get('threats_detected', []),
+                'recommendations': guidance_data.get('recommendations', []),
+                'claude_response': guidance_data.get('claude_response'),
+                'embedding': embedding,
+                'model_used': guidance_data.get('model_used', 'claude-3-5-sonnet-20241022'),
+                'response_tokens': guidance_data.get('response_tokens'),
+                'processing_time_ms': guidance_data.get('processing_time_ms'),
+                'metadata': {
+                    'model_used': self.model_name,
+                    'embedding_dimensions': len(embedding),
+                    'generated_at': guidance_data.get('timestamp'),
+                    'text_description': text_description
+                }
+            }
+        else:
+            logger.error("Failed to generate embedding for guidance response")
+            return None
+    
+    def _create_guidance_description(self, guidance_data: Dict[str, Any]) -> str:
+        """Create a comprehensive text description for guidance data"""
+        source_ip = guidance_data.get('source_ip', 'Unknown')
+        risk_score = guidance_data.get('risk_score', 0)
+        threats = guidance_data.get('threats_detected', [])
+        recommendations = guidance_data.get('recommendations', [])
+        claude_response = guidance_data.get('claude_response', '')
+        
+        description = f"""
+        Network Security Guidance Analysis:
+        Source IP: {source_ip}
+        Risk Score: {risk_score}/100
+        Threats Detected: {', '.join(threats) if threats else 'None detected'}
+        Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
+        
+        Claude AI Guidance Response:
+        {claude_response}
+        
+        Analysis Context:
+        This guidance was generated for a network security incident with risk score {risk_score}.
+        The response provides actionable recommendations for addressing the identified threats.
+        """
+        
+        return description.strip() 

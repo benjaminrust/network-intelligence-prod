@@ -87,6 +87,26 @@ class DatabaseManager:
                     )
                 """)
                 
+                # New Claude Guidance Responses Table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS claude_guidance_responses (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        request_id VARCHAR(255) UNIQUE NOT NULL,
+                        source_ip VARCHAR(45),
+                        risk_score INTEGER DEFAULT 0,
+                        threats_detected JSONB,
+                        recommendations JSONB,
+                        claude_response TEXT NOT NULL,
+                        embedding vector(1024) NOT NULL,
+                        model_used VARCHAR(100) DEFAULT 'claude-3-5-sonnet-20241022',
+                        response_tokens INTEGER,
+                        processing_time_ms INTEGER,
+                        metadata JSONB,
+                        status VARCHAR(20) DEFAULT 'active'
+                    )
+                """)
+                
                 # Threat Intelligence Table
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS threat_intelligence (
@@ -152,6 +172,7 @@ class DatabaseManager:
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_security_events_embedding ON security_events USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_network_analytics_embedding ON network_analytics USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_traffic_embeddings_embedding ON traffic_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_claude_guidance_embedding ON claude_guidance_responses USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)")
                 
             conn.commit()
             logger.info("Database tables initialized successfully with vector support")
@@ -566,5 +587,126 @@ class TrafficEmbeddings:
             logger.error(f"Error updating embedding metadata: {e}")
             conn.rollback()
             return False
+        finally:
+            conn.close() 
+
+class ClaudeGuidanceResponse:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
+    
+    def store_guidance_response(self, guidance_data):
+        """Store a Claude guidance response with embedding"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return None
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO claude_guidance_responses (
+                        request_id, source_ip, risk_score, threats_detected, recommendations,
+                        claude_response, embedding, model_used, response_tokens, 
+                        processing_time_ms, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                """, (
+                    guidance_data.get('request_id'),
+                    guidance_data.get('source_ip'),
+                    guidance_data.get('risk_score', 0),
+                    json.dumps(guidance_data.get('threats_detected', [])),
+                    json.dumps(guidance_data.get('recommendations', [])),
+                    guidance_data.get('claude_response'),
+                    guidance_data.get('embedding'),
+                    guidance_data.get('model_used', 'claude-3-5-sonnet-20241022'),
+                    guidance_data.get('response_tokens'),
+                    guidance_data.get('processing_time_ms'),
+                    json.dumps(guidance_data.get('metadata', {}))
+                ))
+                
+                result = cur.fetchone()
+                conn.commit()
+                return dict(result) if result else None
+                
+        except Exception as e:
+            logger.error(f"Error storing guidance response: {e}")
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+    
+    def find_similar_guidance(self, query_embedding, limit=5, similarity_threshold=0.8):
+        """Find similar guidance responses using vector similarity"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                query = """
+                    SELECT *, 
+                           (1 - (embedding <=> %s)) as similarity_score
+                    FROM claude_guidance_responses 
+                    WHERE (1 - (embedding <=> %s)) >= %s AND status = 'active'
+                """
+                params = [query_embedding, query_embedding, similarity_threshold]
+                
+                query += " ORDER BY embedding <=> %s LIMIT %s"
+                params.extend([query_embedding, limit])
+                
+                cur.execute(query, params)
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+                
+        except Exception as e:
+            logger.error(f"Error finding similar guidance: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def get_guidance_by_risk_score(self, risk_score, limit=10):
+        """Get guidance responses by risk score range"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Get responses within ±10 points of the risk score
+                cur.execute("""
+                    SELECT * FROM claude_guidance_responses 
+                    WHERE risk_score BETWEEN %s AND %s AND status = 'active'
+                    ORDER BY timestamp DESC 
+                    LIMIT %s
+                """, (max(0, risk_score - 10), min(100, risk_score + 10), limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+                
+        except Exception as e:
+            logger.error(f"Error getting guidance by risk score: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def get_recent_guidance(self, hours=24, limit=20):
+        """Get recent guidance responses"""
+        conn = self.db_manager.get_connection()
+        if not conn:
+            return []
+        
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM claude_guidance_responses 
+                    WHERE timestamp >= NOW() - INTERVAL '%s hours' AND status = 'active'
+                    ORDER BY timestamp DESC 
+                    LIMIT %s
+                """, (hours, limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+                
+        except Exception as e:
+            logger.error(f"Error getting recent guidance: {e}")
+            return []
         finally:
             conn.close() 
