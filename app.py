@@ -1055,6 +1055,9 @@ def generate_guidance():
         claude_api_key = os.environ.get('CLAUDE_KEY')
         claude_url = os.environ.get('CLAUDE_URL', 'https://us.inference.heroku.com')
         
+        # Construct the full API endpoint URL
+        api_endpoint = f"{claude_url}/v1/chat/completions"
+        
         if not claude_api_key:
             return jsonify({
                 'success': False,
@@ -1108,14 +1111,21 @@ Format your response as clear, well-structured paragraphs for each section, writ
             ]
         }
         
-        response = requests.post(claude_url, headers=headers, json=payload, timeout=30)
+        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=30)
         end_time = datetime.now()
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
         if response.status_code == 200:
             result = response.json()
-            guidance_text = result.get('content', [{}])[0].get('text', 'Unable to generate guidance')
-            response_tokens = result.get('usage', {}).get('output_tokens', 0)
+            # Handle both Anthropic and Heroku Claude API response formats
+            if 'choices' in result:
+                # Heroku Claude API format
+                guidance_text = result.get('choices', [{}])[0].get('message', {}).get('content', 'Unable to generate guidance')
+                response_tokens = result.get('usage', {}).get('completion_tokens', 0)
+            else:
+                # Anthropic API format
+                guidance_text = result.get('content', [{}])[0].get('text', 'Unable to generate guidance')
+                response_tokens = result.get('usage', {}).get('output_tokens', 0)
             
             # Prepare guidance data for storage
             guidance_data = {
