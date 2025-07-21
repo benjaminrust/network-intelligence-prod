@@ -25,6 +25,9 @@ class EmbeddingManager:
             logger.warning("Embedding generation disabled - no Cohere credentials")
             return None
         
+        # Truncate text if it exceeds Cohere's 2048 character limit
+        text = self._truncate_text_for_embedding(text)
+        
         try:
             headers = {
                 'Authorization': f'Bearer {self.cohere_api_key}',
@@ -60,6 +63,16 @@ class EmbeddingManager:
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             return None
+    
+    def _truncate_text_for_embedding(self, text: str, max_length: int = 2000) -> str:
+        """Truncate text to fit within Cohere's character limit"""
+        if len(text) <= max_length:
+            return text
+        
+        # Truncate and add indicator
+        truncated = text[:max_length-20] + "... [truncated]"
+        logger.warning(f"Text truncated from {len(text)} to {len(truncated)} characters for embedding")
+        return truncated
     
     def generate_traffic_analysis_embedding(self, analysis_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Generate embedding for traffic analysis data"""
@@ -325,6 +338,11 @@ class EmbeddingManager:
         recommendations = guidance_data.get('recommendations', [])
         claude_response = guidance_data.get('claude_response', '')
         
+        # Truncate Claude response to keep within Cohere's 2048 character limit
+        max_response_length = 1000  # Leave room for other text
+        if len(claude_response) > max_response_length:
+            claude_response = claude_response[:max_response_length] + "... [truncated]"
+        
         description = f"""
         Network Security Guidance Analysis:
         Source IP: {source_ip}
@@ -332,7 +350,7 @@ class EmbeddingManager:
         Threats Detected: {', '.join(threats) if threats else 'None detected'}
         Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
         
-        Claude AI Guidance Response:
+        Claude AI Guidance Summary:
         {claude_response}
         
         Analysis Context:
@@ -340,4 +358,16 @@ class EmbeddingManager:
         The response provides actionable recommendations for addressing the identified threats.
         """
         
-        return description.strip() 
+        # Ensure the final description doesn't exceed 2048 characters
+        description = description.strip()
+        if len(description) > 2048:
+            # Truncate the description while keeping essential information
+            essential_info = f"Network Security Guidance: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats[:3]) if threats else 'None'}"
+            remaining_chars = 2048 - len(essential_info) - 50  # Leave buffer
+            if remaining_chars > 0:
+                truncated_response = claude_response[:remaining_chars] + "... [truncated]"
+                description = f"{essential_info}. Guidance: {truncated_response}"
+            else:
+                description = essential_info
+        
+        return description 
