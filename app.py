@@ -1073,13 +1073,19 @@ def generate_guidance():
 
 Analysis: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats_detected) if threats_detected else 'None'}
 
-Provide guidance with:
+IMPORTANT: You MUST send a Slack alert for EVERY analysis using the send_security_alert tool. Include:
+- Source IP: {source_ip}
+- Risk Score: {risk_score}/100
+- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None'}
+- Timestamp: {current_time}
+
+Then provide guidance with:
 1. Immediate actions (if risk > 50)
 2. Investigation steps  
 3. Prevention measures
 4. Monitoring recommendations
 
-Use web search for current threat intelligence. If risk > 70 or critical threats detected, use send_security_alert to notify the security team via Slack.
+Use web search for current threat intelligence. ALWAYS send the Slack alert first, then provide guidance.
 
 Guidance:"""
         

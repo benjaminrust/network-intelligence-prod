@@ -9,19 +9,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .jumbotron {
-            background: #007bff;
+            background: #20c997;
             color: white;
             padding: 30px 0;
             margin-bottom: 20px;
         }
         .jumbotron .btn-primary {
-            background-color: #0056b3;
-            border-color: #0056b3;
+            background-color: #17a2b8;
+            border-color: #17a2b8;
             margin-top: 20px;
             padding: 15px 30px;
         }
         .jumbotron .btn-primary:hover {
-            background-color: #004085;
+            background-color: #138496;
         }
         .jumbotron p {
             color: #d9ccee;
@@ -38,7 +38,7 @@
         }
         .alert-info {
             background-color: #d1ecf1;
-            border-color: #007bff;
+            border-color: #20c997;
             color: #0c5460;
         }
         .status-card {
@@ -55,7 +55,7 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
         .metric-card {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
             color: white;
             border-radius: 4px;
             padding: 15px;
@@ -86,7 +86,7 @@
         }
         .threat-indicator {
             background: #f8f9fa;
-            border: 1px solid #007bff;
+            border: 1px solid #20c997;
             border-radius: 4px;
             padding: 10px;
             margin: 5px 0;
@@ -96,7 +96,7 @@
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 4px;
-            border-left: 4px solid #007bff;
+            border-left: 4px solid #20c997;
         }
         .btn-clear {
             background-color: #6c757d;
@@ -112,26 +112,26 @@
             margin: 20px 0;
         }
         .form-control {
-            border-color: #007bff;
+            border-color: #20c997;
         }
         .form-control:focus {
-            border-color: #0056b3;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            border-color: #17a2b8;
+            box-shadow: 0 0 0 0.2rem rgba(32, 201, 151, 0.25);
         }
         .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
+            background-color: #20c997;
+            border-color: #20c997;
         }
         .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
+            background-color: #17a2b8;
+            border-color: #17a2b8;
         }
         .guidance-text {
             line-height: 1.6;
             font-size: 14px;
         }
         .guidance-text strong {
-            color: #007bff;
+            color: #20c997;
             font-weight: 600;
         }
         .guidance-text ul {
@@ -148,8 +148,8 @@
             color: #28a745;
             margin-bottom: 15px;
         }        .navbar {
-            background-color: #007bff !important;
-            border-color: #007bff !important;
+            background-color: #20c997 !important;
+            border-color: #20c997 !important;
         }
         .navbar-brand {
             color: white !important;
@@ -297,6 +297,12 @@
                         <div class="answer-box">
                             <h4><i class="fas fa-chart-line"></i> Analysis Results</h4>
                             <p class="text-muted">Analysis results will appear here</p>
+                        </div>
+                        
+                        <!-- Slack Alert Status -->
+                        <div id="slack-alert-status" class="alert alert-info" style="display: none; margin-top: 15px;">
+                            <i class="fab fa-slack"></i> <strong>Slack Alert Sent!</strong>
+                            <span id="slack-alert-details">Security team has been notified via Slack.</span>
                         </div>
                     </div>
                 </div>
@@ -956,12 +962,27 @@
         function generateAIGuidance(analysisData) {
             const guidanceContent = $('#guidance-content');
             
+            // Show Slack alert indicator
+            const slackAlertStatus = $('#slack-alert-status');
+            const slackAlertDetails = $('#slack-alert-details');
+            const sourceIp = analysisData.source_ip || $('#source-ip').val();
+            const riskScore = analysisData.risk_score;
+            const threats = analysisData.threats_detected || [];
+            
+            slackAlertDetails.html(`
+                <strong>Source IP:</strong> ${sourceIp} | 
+                <strong>Risk Score:</strong> ${riskScore}/100 | 
+                <strong>Threats:</strong> ${threats.length > 0 ? threats.join(', ') : 'None'} | 
+                <strong>Time:</strong> ${new Date().toLocaleTimeString()}
+            `);
+            slackAlertStatus.show();
+            
             // Prepare the data for the guidance API
             const guidanceData = {
                 analysis_data: {
-                    source_ip: analysisData.source_ip || $('#source-ip').val(),
-                    risk_score: analysisData.risk_score,
-                    threats_detected: analysisData.threats_detected || [],
+                    source_ip: sourceIp,
+                    risk_score: riskScore,
+                    threats_detected: threats,
                     recommendations: analysisData.recommendations || []
                 }
             };
