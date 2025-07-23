@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Trigger dev build - testing CI/CD pipeline
+# This change will trigger a new build for the dev environment
+
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['REDIS_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379')
