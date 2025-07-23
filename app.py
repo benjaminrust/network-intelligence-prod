@@ -1119,7 +1119,7 @@ Format your response as clear, well-structured paragraphs for each section, writ
             ]
         }
         
-        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=30)
+        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=60)
         end_time = datetime.now()
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
