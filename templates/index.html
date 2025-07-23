@@ -9,19 +9,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .jumbotron {
-            background: #532F8C;
+            background: #007bff;
             color: white;
             padding: 30px 0;
             margin-bottom: 20px;
         }
         .jumbotron .btn-primary {
-            background-color: #845ac7;
-            border-color: #845ac7;
+            background-color: #0056b3;
+            border-color: #0056b3;
             margin-top: 20px;
             padding: 15px 30px;
         }
         .jumbotron .btn-primary:hover {
-            background-color: #7646c1;
+            background-color: #004085;
         }
         .jumbotron p {
             color: #d9ccee;
@@ -37,9 +37,9 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         }
         .alert-info {
-            background-color: #d9ccee;
-            border-color: #845ac7;
-            color: #532F8C;
+            background-color: #d1ecf1;
+            border-color: #007bff;
+            color: #0c5460;
         }
         .status-card {
             background-color: white;
@@ -55,7 +55,7 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
         .metric-card {
-            background: linear-gradient(135deg, #532F8C 0%, #845ac7 100%);
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
             border-radius: 4px;
             padding: 15px;
@@ -86,7 +86,7 @@
         }
         .threat-indicator {
             background: #f8f9fa;
-            border: 1px solid #845ac7;
+            border: 1px solid #007bff;
             border-radius: 4px;
             padding: 10px;
             margin: 5px 0;
@@ -96,7 +96,7 @@
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 4px;
-            border-left: 4px solid #845ac7;
+            border-left: 4px solid #007bff;
         }
         .btn-clear {
             background-color: #6c757d;
@@ -112,26 +112,26 @@
             margin: 20px 0;
         }
         .form-control {
-            border-color: #845ac7;
+            border-color: #007bff;
         }
         .form-control:focus {
-            border-color: #532F8C;
-            box-shadow: 0 0 0 0.2rem rgba(83, 47, 140, 0.25);
+            border-color: #0056b3;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
         .btn-primary {
-            background-color: #845ac7;
-            border-color: #845ac7;
+            background-color: #007bff;
+            border-color: #007bff;
         }
         .btn-primary:hover {
-            background-color: #7646c1;
-            border-color: #7646c1;
+            background-color: #0056b3;
+            border-color: #0056b3;
         }
         .guidance-text {
             line-height: 1.6;
             font-size: 14px;
         }
         .guidance-text strong {
-            color: #532F8C;
+            color: #007bff;
             font-weight: 600;
         }
         .guidance-text ul {
@@ -148,8 +148,8 @@
             color: #28a745;
             margin-bottom: 15px;
         }        .navbar {
-            background-color: #532F8C !important;
-            border-color: #532F8C !important;
+            background-color: #007bff !important;
+            border-color: #007bff !important;
         }
         .navbar-brand {
             color: white !important;
@@ -235,24 +235,12 @@
             </div>
         </div>
 
-        <!-- Main Content -->
+        <!-- 2x2 Layout: Threats and Analysis Below Graphs -->
         <div class="row">
-            <!-- Recent Events -->
-            <div class="col-md-8">
+            <!-- Left Side: Potential Threats -->
+            <div class="col-md-6">
                 <div class="qa-section">
-                    <h3><i class="fas fa-list"></i> Recent Security Events</h3>
-                    <div id="events-list">
-                        <div class="text-center text-muted">
-                            <i class="fas fa-spinner fa-spin"></i> Loading events...
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Threat Intelligence -->
-            <div class="col-md-4">
-                <div class="qa-section">
-                    <h3><i class="fas fa-bug"></i> Threat Intelligence</h3>
+                    <h3><i class="fas fa-bug"></i> Potential Threats</h3>
                     <div id="threat-indicators">
                         <div class="text-center text-muted">
                             <i class="fas fa-spinner fa-spin"></i> Loading threats...
@@ -270,51 +258,59 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Right Side: Analysis Entry Section -->
+            <div class="col-md-6">
+                <div class="qa-section">
+                    <h3><i class="fas fa-search"></i> Network Analysis</h3>
+                    <form id="traffic-analysis-form">
+                        <div class="form-group">
+                            <label for="source-ip">Source IP:</label>
+                            <input type="text" class="form-control" id="source-ip" placeholder="192.168.1.1">
+                        </div>
+                        <div class="form-group">
+                            <label for="connection-count">Connection Count:</label>
+                            <input type="number" class="form-control" id="connection-count" value="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="failed-attempts">Failed Auth Attempts:</label>
+                            <input type="number" class="form-control" id="failed-attempts" value="5">
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Analyze Traffic
+                            </button>
+                            <button type="button" class="btn btn-info" onclick="loadAnalysisHistory()">
+                                <i class="fas fa-history"></i> View History
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <label>Quick Analyze from Recent Events:</label>
+                            <div id="analyze-suggestions" class="btn-group-vertical" style="width: 100%;">
+                                <small class="text-muted">Loading suggestions...</small>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Analysis Results -->
+                    <div id="analysis-results">
+                        <div class="answer-box">
+                            <h4><i class="fas fa-chart-line"></i> Analysis Results</h4>
+                            <p class="text-muted">Analysis results will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Network Analysis -->
+        <!-- Recent Events Section -->
         <div class="row">
             <div class="col-12">
                 <div class="qa-section">
-                    <h3><i class="fas fa-search"></i> Network Analysis</h3>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <form id="traffic-analysis-form">
-                                <div class="form-group">
-                                    <label for="source-ip">Source IP:</label>
-                                    <input type="text" class="form-control" id="source-ip" placeholder="192.168.1.1">
-                                </div>
-                                <div class="form-group">
-                                    <label for="connection-count">Connection Count:</label>
-                                    <input type="number" class="form-control" id="connection-count" value="100">
-                                </div>
-                                <div class="form-group">
-                                    <label for="failed-attempts">Failed Auth Attempts:</label>
-                                    <input type="number" class="form-control" id="failed-attempts" value="5">
-                                </div>
-                                <div class="button-group">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-search"></i> Analyze Traffic
-                                    </button>
-                                    <button type="button" class="btn btn-info" onclick="loadAnalysisHistory()">
-                                        <i class="fas fa-history"></i> View History
-                                    </button>
-                                </div>
-                                <div class="form-group">
-                                    <label>Quick Analyze from Recent Events:</label>
-                                    <div id="analyze-suggestions" class="btn-group-vertical" style="width: 100%;">
-                                        <small class="text-muted">Loading suggestions...</small>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="col-md-6">
-                            <div id="analysis-results">
-                                <div class="answer-box">
-                                    <h4><i class="fas fa-chart-line"></i> Analysis Results</h4>
-                                    <p class="text-muted">Analysis results will appear here</p>
-                                </div>
-                            </div>
+                    <h3><i class="fas fa-list"></i> Recent Security Events</h3>
+                    <div id="events-list">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading events...
                         </div>
                     </div>
                 </div>
