@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Dev Review App Test - This change should trigger a review app in the heroku-se-demo team pipeline
+# Target: network-intelligence-dev environment
+
+# Database connection
+def get_db_connection():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        return psycopg2.connect(database_url)
+    return None
+
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['REDIS_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379')
@@ -1067,30 +1077,21 @@ def generate_guidance():
         
         # Prepare a dynamic prompt that ensures fresh responses
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-        prompt = f"""You are an expert network security engineer providing real-time guidance to a network administrator.
+        prompt = f"""You are a network security expert. You have access to:
+- Brave MCP for web searches (research current threats)
+- Slack MCP with send_security_alert tool (notify security team)
 
-Current timestamp: {current_time}
+Analysis: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats_detected) if threats_detected else 'None'}
 
-Based on the following network analysis results, provide clear, actionable guidance:
+Provide guidance with:
+1. Immediate actions (if risk > 50)
+2. Investigation steps  
+3. Prevention measures
+4. Monitoring recommendations
 
-**Analysis Summary:**
-- Source IP: {source_ip}
-- Risk Score: {risk_score}/100
-- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None detected'}
-- Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
+Use web search for current threat intelligence. If risk > 70 or critical threats detected, use send_security_alert to notify the security team via Slack.
 
-**Your Task:**
-Provide a unique, fresh guidance response that includes:
-1. Immediate Actions - What should be done right now (if risk score > 50)
-2. Investigation Steps - Specific technical steps to investigate further
-3. Prevention Measures - How to prevent similar issues in the future
-4. Monitoring Recommendations - What to watch for going forward
-
-Important: Provide a completely fresh response based on the current context. Do not use any cached or pre-written responses. Each response should be unique and tailored to this specific situation.
-
-Format your response as clear, well-structured paragraphs for each section, written in a human-like, conversational style. Do not use bullet points. Write as if you are explaining your reasoning and recommendations to a colleague.
-
-**Guidance:**"""
+Guidance:"""
         
         # Call Claude API with timing
         start_time = datetime.now()
@@ -1111,7 +1112,7 @@ Format your response as clear, well-structured paragraphs for each section, writ
             ]
         }
         
-        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=30)
+        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=60)
         end_time = datetime.now()
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
