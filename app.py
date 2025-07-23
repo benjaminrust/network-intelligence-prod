@@ -44,6 +44,77 @@ claude_guidance = ClaudeGuidanceResponse(db_manager) if db_manager else None
 # Initialize embedding manager
 embedding_manager = EmbeddingManager()
 
+# Slack Integration
+def send_slack_alert(analysis_data):
+    """Send security alert to Slack webhook"""
+    slack_webhook_url = os.environ.get('SLACK_WEBHOOK_URL')
+    if not slack_webhook_url:
+        logger.warning("SLACK_WEBHOOK_URL not configured")
+        return False
+    
+    try:
+        # Format the alert message
+        risk_level = "🔴 HIGH" if analysis_data.get('risk_score', 0) >= 70 else "🟡 MEDIUM" if analysis_data.get('risk_score', 0) >= 40 else "🟢 LOW"
+        
+        threats_text = "\n".join([f"• {threat}" for threat in analysis_data.get('threats_detected', [])]) if analysis_data.get('threats_detected') else "• None detected"
+        
+        message = {
+            "text": f"🚨 *Network Security Alert*",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "🚨 Network Security Alert"
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Source IP:*\n{analysis_data.get('source_ip', 'Unknown')}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Risk Level:*\n{risk_level}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Risk Score:*\n{analysis_data.get('risk_score', 0)}/100"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Analysis ID:*\n{analysis_data.get('analysis_id', 'N/A')}"
+                        }
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Threats Detected:*\n{threats_text}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Timestamp:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                    }
+                }
+            ]
+        }
+        
+        response = requests.post(slack_webhook_url, json=message, timeout=10)
+        response.raise_for_status()
+        logger.info(f"Slack alert sent successfully for analysis {analysis_data.get('analysis_id')}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send Slack alert: {str(e)}")
+        return False
+
 # Network Intelligence Core Classes
 class NetworkMonitor:
     def __init__(self):
@@ -389,6 +460,16 @@ def analyze_network_traffic():
         # Add success message to analysis
         analysis['stored_in_database'] = True
         analysis['analysis_id'] = str(uuid.uuid4())
+        
+        # Send Slack alert for the analysis
+        analysis_data = {
+            'source_ip': traffic_data.get('source_ip'),
+            'risk_score': analysis['risk_score'],
+            'threats_detected': analysis['threats_detected'],
+            'analysis_id': analysis['analysis_id'],
+            'timestamp': analysis['timestamp']
+        }
+        send_slack_alert(analysis_data)
         
         return jsonify(analysis)
     
