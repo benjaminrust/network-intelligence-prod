@@ -1067,38 +1067,19 @@ def generate_guidance():
         
         # Prepare a dynamic prompt that ensures fresh responses
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-        prompt = f"""You are an expert network security engineer providing real-time guidance to a network administrator.
+        prompt = f"""You are a network security expert. You have access to Brave MCP for web searches to research current threats.
 
-Current timestamp: {current_time}
+Analysis: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats_detected) if threats_detected else 'None'}
 
-**Available Tools:**
-You have access to the Brave MCP tool for web searches. If you need to research current threats, vulnerabilities, or security best practices related to the analysis, you can use web search to gather the most up-to-date information.
+Provide guidance with:
+1. Immediate actions (if risk > 50)
+2. Investigation steps  
+3. Prevention measures
+4. Monitoring recommendations
 
-Based on the following network analysis results, provide clear, actionable guidance:
+Use web search if needed for current threat intelligence. Write in clear paragraphs.
 
-**Analysis Summary:**
-- Source IP: {source_ip}
-- Risk Score: {risk_score}/100
-- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None detected'}
-- Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
-
-**Your Task:**
-Provide a unique, fresh guidance response that includes:
-1. Immediate Actions - What should be done right now (if risk score > 50)
-2. Investigation Steps - Specific technical steps to investigate further
-3. Prevention Measures - How to prevent similar issues in the future
-4. Monitoring Recommendations - What to watch for going forward
-
-**Research Guidelines:**
-- If the threats detected are significant or you need current information about specific vulnerabilities, use web search to gather the latest threat intelligence
-- Focus your searches on recent security advisories, CVE information, or threat actor tactics
-- Use the search results to provide more accurate and current recommendations
-
-Important: Provide a completely fresh response based on the current context. Do not use any cached or pre-written responses. Each response should be unique and tailored to this specific situation.
-
-Format your response as clear, well-structured paragraphs for each section, written in a human-like, conversational style. Do not use bullet points. Write as if you are explaining your reasoning and recommendations to a colleague.
-
-**Guidance:**"""
+Guidance:"""
         
         # Call Claude API with timing
         start_time = datetime.now()
