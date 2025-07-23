@@ -26,7 +26,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const reviewAppUrl = `https://network-intelligence-pr-${context.event.number}.herokuapp.com`;
+          const reviewAppUrl = `https://network-intelligence-pr-${context.issue.number}.herokuapp.com`;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
