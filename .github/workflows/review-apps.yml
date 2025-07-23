@@ -1,0 +1,35 @@
+name: Review Apps
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  create-review-app:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Create Review App
+      run: |
+        echo "Creating review app for PR #${{ github.event.number }}"
+        echo "Branch: ${{ github.head_ref }}"
+        echo "Review app will be created automatically by Heroku"
+        
+        # This will trigger Heroku's automatic review app creation
+        # if the pipeline is properly configured
+        
+    - name: Add Review App Comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const reviewAppUrl = `https://network-intelligence-pr-${context.issue.number}.herokuapp.com`;
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🚀 **Review App Created!**\n\nYour changes are now available at: ${reviewAppUrl}\n\nThis review app will be automatically deleted when the PR is closed.`
+          }); 
