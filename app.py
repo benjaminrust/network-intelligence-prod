@@ -1071,6 +1071,9 @@ def generate_guidance():
 
 Current timestamp: {current_time}
 
+**Available Tools:**
+You have access to the Brave MCP tool for web searches. If you need to research current threats, vulnerabilities, or security best practices related to the analysis, you can use web search to gather the most up-to-date information.
+
 Based on the following network analysis results, provide clear, actionable guidance:
 
 **Analysis Summary:**
@@ -1085,6 +1088,11 @@ Provide a unique, fresh guidance response that includes:
 2. Investigation Steps - Specific technical steps to investigate further
 3. Prevention Measures - How to prevent similar issues in the future
 4. Monitoring Recommendations - What to watch for going forward
+
+**Research Guidelines:**
+- If the threats detected are significant or you need current information about specific vulnerabilities, use web search to gather the latest threat intelligence
+- Focus your searches on recent security advisories, CVE information, or threat actor tactics
+- Use the search results to provide more accurate and current recommendations
 
 Important: Provide a completely fresh response based on the current context. Do not use any cached or pre-written responses. Each response should be unique and tailored to this specific situation.
 
