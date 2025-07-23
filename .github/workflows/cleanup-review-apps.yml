@@ -1,0 +1,29 @@
+name: Cleanup Review Apps
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup-review-app:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == false
+    
+    steps:
+    - name: Delete Review App
+      run: |
+        # Delete the review app using Heroku CLI
+        heroku apps:destroy network-intelligence-pr-${{ github.event.number }} --confirm network-intelligence-pr-${{ github.event.number }} || true
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+    
+    - name: Add Cleanup Comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🧹 **Review App Cleaned Up!**\n\nThe review app for this PR has been automatically deleted.`
+          }); 

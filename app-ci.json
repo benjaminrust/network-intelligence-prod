@@ -1,0 +1,45 @@
+{
+  "environments": {
+    "test": {
+      "scripts": {
+        "test": "python -m pytest tests/ -v --tb=short",
+        "test-setup": "echo 'Setting up test environment'"
+      },
+      "env": {
+        "FLASK_ENV": "testing",
+        "TESTING": "true"
+      },
+      "formation": {
+        "test": {
+          "quantity": 1,
+          "size": "basic"
+        }
+      }
+    },
+    "review": {
+      "scripts": {
+        "postdeploy": "python -c \"print('Review app deployed successfully!')\""
+      },
+      "env": {
+        "FLASK_ENV": "review",
+        "REVIEW_APP": "true"
+      },
+      "formation": {
+        "web": {
+          "quantity": 1,
+          "size": "basic"
+        }
+      },
+      "addons": [
+        {
+          "plan": "heroku-postgresql:mini",
+          "as": "DATABASE"
+        },
+        {
+          "plan": "heroku-redis:mini",
+          "as": "REDIS"
+        }
+      ]
+    }
+  }
+} 

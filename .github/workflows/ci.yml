@@ -70,6 +70,40 @@ jobs:
         pip install safety
         safety check --json --output safety-report.json || true
 
+  create-review-app:
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Create Heroku Review App
+      uses: akhileshns/heroku-deploy@v3.12.14
+      with:
+        heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+        heroku_app_name: "network-intelligence-pr-${{ github.event.number }}"
+        heroku_email: ${{ secrets.HEROKU_EMAIL }}
+        branch: ${{ github.head_ref }}
+        appdir: "."
+        buildpack: "heroku/python"
+        env: |
+          FLASK_ENV=review
+          REVIEW_APP=true
+          PR_NUMBER=${{ github.event.number }}
+    
+    - name: Add Review App URL to PR
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const reviewAppUrl = `https://network-intelligence-pr-${context.event.number}.herokuapp.com`;
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `🚀 **Review App Deployed!**\n\nYour changes are now available at: ${reviewAppUrl}\n\nThis review app will be automatically deleted when the PR is closed.`
+          });
+
   deploy-dev:
     needs: [test, security]
     runs-on: ubuntu-latest

@@ -1,7 +1,7 @@
 {
   "name": "Network Intelligence - Development",
   "description": "Real-time network intelligence and security monitoring platform - Development Environment",
-  "repository": "https://github.com/benjaminrust/network-intelligence-dev",
+  "repository": "https://github.com/benjaminrust/network-intelligence-prod",
   "logo": "https://node-js-sample.herokuapp.com/node.png",
   "keywords": ["python", "flask", "network-intelligence", "security", "monitoring"],
   "env": {
@@ -49,6 +49,73 @@
       "env": {
         "FLASK_ENV": "testing",
         "TESTING": "true"
+      }
+    },
+    "review": {
+      "scripts": {
+        "postdeploy": "python -c \"print('Review app deployed successfully!')\""
+      },
+      "env": {
+        "FLASK_ENV": "review",
+        "REVIEW_APP": "true"
+      },
+      "formation": {
+        "web": {
+          "quantity": 1,
+          "size": "basic"
+        }
+      },
+      "addons": [
+        {
+          "plan": "heroku-postgresql:mini",
+          "as": "DATABASE"
+        },
+        {
+          "plan": "heroku-redis:mini",
+          "as": "REDIS"
+        }
+      ]
+    },
+    "development": {
+      "scripts": {
+        "postdeploy": "python -c \"print('Development app deployed successfully!')\""
+      },
+      "env": {
+        "FLASK_ENV": "development"
+      },
+      "formation": {
+        "web": {
+          "quantity": 1,
+          "size": "basic"
+        }
+      }
+    },
+    "staging": {
+      "scripts": {
+        "postdeploy": "python -c \"print('Staging app deployed successfully!')\""
+      },
+      "env": {
+        "FLASK_ENV": "staging"
+      },
+      "formation": {
+        "web": {
+          "quantity": 1,
+          "size": "standard-1x"
+        }
+      }
+    },
+    "production": {
+      "scripts": {
+        "postdeploy": "python -c \"print('Production app deployed successfully!')\""
+      },
+      "env": {
+        "FLASK_ENV": "production"
+      },
+      "formation": {
+        "web": {
+          "quantity": 1,
+          "size": "standard-2x"
+        }
       }
     }
   }
