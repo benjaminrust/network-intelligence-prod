@@ -1067,7 +1067,9 @@ def generate_guidance():
         
         # Prepare a dynamic prompt that ensures fresh responses
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-        prompt = f"""You are a network security expert. You have access to Brave MCP for web searches to research current threats.
+        prompt = f"""You are a network security expert. You have access to:
+- Brave MCP for web searches (research current threats)
+- Slack MCP with send_security_alert tool (notify security team)
 
 Analysis: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats_detected) if threats_detected else 'None'}
 
@@ -1077,7 +1079,7 @@ Provide guidance with:
 3. Prevention measures
 4. Monitoring recommendations
 
-Use web search if needed for current threat intelligence. Write in clear paragraphs.
+Use web search for current threat intelligence. If risk > 70 or critical threats detected, use send_security_alert to notify the security team via Slack.
 
 Guidance:"""
         
