@@ -318,14 +318,9 @@ def network_status():
 def analyze_network_traffic():
     """Analyze network traffic data"""
     try:
-        # Try to parse JSON and catch any parsing errors
-        try:
-            traffic_data = request.get_json(force=True)
-        except Exception:
-            return jsonify({'error': 'Invalid JSON'}), 400
-        
+        traffic_data = request.get_json()
         if not traffic_data:
-            return jsonify({'result': 'No data provided', 'risk_score': 0}), 200
+            return jsonify({'error': 'No traffic data provided'}), 400
         
         analysis = network_monitor.analyze_traffic(traffic_data)
         
@@ -394,8 +389,6 @@ def analyze_network_traffic():
     
     except Exception as e:
         logger.error(f"Error analyzing traffic: {e}")
-        if "JSON" in str(e) or "decode" in str(e).lower():
-            return jsonify({'error': 'Invalid JSON'}), 400
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/network/analysis-history')
@@ -480,12 +473,7 @@ def get_events():
         # Use dynamic mock events for demo
         print("DEBUG: Calling network_monitor.generate_mock_security_events()")
         logger.info("DEBUG: Calling network_monitor.generate_mock_security_events()")
-        
-        # For test scenarios, return empty list when no database is available
-        if not security_event:
-            events = []
-        else:
-            events = network_monitor.generate_mock_security_events(limit)
+        events = network_monitor.generate_mock_security_events(limit)
         
         print(f"DEBUG: Generated {len(events)} events")
         logger.info(f"DEBUG: Generated {len(events)} events")
@@ -1079,27 +1067,30 @@ def generate_guidance():
         
         # Prepare a dynamic prompt that ensures fresh responses
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-        prompt = f"""You are a network security expert. You have access to:
-- Brave MCP for web searches (research current threats)
-- Slack MCP with send_security_alert tool (notify security team)
+        prompt = f"""You are an expert network security engineer providing real-time guidance to a network administrator.
 
-Analysis: IP {source_ip}, Risk {risk_score}/100, Threats: {', '.join(threats_detected) if threats_detected else 'None'}
+Current timestamp: {current_time}
 
-IMPORTANT: You MUST send a Slack alert for EVERY analysis using the send_security_alert tool. Include:
+Based on the following network analysis results, provide clear, actionable guidance:
+
+**Analysis Summary:**
 - Source IP: {source_ip}
 - Risk Score: {risk_score}/100
-- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None'}
-- Timestamp: {current_time}
+- Threats Detected: {', '.join(threats_detected) if threats_detected else 'None detected'}
+- Current Recommendations: {', '.join(recommendations) if recommendations else 'None'}
 
-Then provide guidance with:
-1. Immediate actions (if risk > 50)
-2. Investigation steps  
-3. Prevention measures
-4. Monitoring recommendations
+**Your Task:**
+Provide a unique, fresh guidance response that includes:
+1. Immediate Actions - What should be done right now (if risk score > 50)
+2. Investigation Steps - Specific technical steps to investigate further
+3. Prevention Measures - How to prevent similar issues in the future
+4. Monitoring Recommendations - What to watch for going forward
 
-Use web search for current threat intelligence. ALWAYS send the Slack alert first, then provide guidance.
+Important: Provide a completely fresh response based on the current context. Do not use any cached or pre-written responses. Each response should be unique and tailored to this specific situation.
 
-Guidance:"""
+Format your response as clear, well-structured paragraphs for each section, written in a human-like, conversational style. Do not use bullet points. Write as if you are explaining your reasoning and recommendations to a colleague.
+
+**Guidance:**"""
         
         # Call Claude API with timing
         start_time = datetime.now()
@@ -1120,7 +1111,7 @@ Guidance:"""
             ]
         }
         
-        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=60)
+        response = requests.post(api_endpoint, headers=headers, json=payload, timeout=30)
         end_time = datetime.now()
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
         
